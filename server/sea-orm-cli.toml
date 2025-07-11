@@ -1,0 +1,8 @@
+[project]
+name = "tagblaze"
+database_url = "${DATABASE_URL}"
+lib = false
+
+[codegen]
+output_dir = "src/models"
+tables = ["user"]  # we’ll expand this later
