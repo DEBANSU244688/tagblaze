@@ -1,11 +1,13 @@
 use axum::{Json, response::IntoResponse};
 use axum::http::StatusCode;
+use axum::{extract::Request};
 use sea_orm::{EntityTrait, ActiveModelTrait, Set, ColumnTrait, QueryFilter};
 use crate::models::user::{Entity as User, ActiveModel};
 use crate::routes::auth::RegisterRequest;
 use bcrypt::{hash, DEFAULT_COST, verify};
 use crate::routes::auth::{LoginRequest, LoginResponse};
 use crate::utils::jwt::create_jwt;
+use crate::utils::auth::extract_claims;
 
 pub async fn register_user(Json(payload): Json<RegisterRequest>) -> impl IntoResponse {
     let password_hash = hash(&payload.password, DEFAULT_COST).unwrap();
@@ -51,4 +53,11 @@ pub async fn login_user(Json(payload): Json<LoginRequest>) -> Result<Json<LoginR
     }
 
     Err(StatusCode::UNAUTHORIZED)
+}
+
+pub async fn me(req: Request) -> Json<String> {
+    match extract_claims(&req) {
+        Ok(claims) => Json(format!("👤 Logged in as: {}", claims.sub)),
+        Err(_) => Json("❌ Invalid token".into()),
+    }
 }
