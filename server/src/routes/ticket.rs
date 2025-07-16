@@ -1,13 +1,15 @@
 use axum::{
-    extract::{Json},
+    extract::{Json, Path},
     response::IntoResponse,
     http::StatusCode,
-    routing::post,
+    routing::{post, get},
     Router,
 };
 use axum_extra::extract::TypedHeader;
 use headers::{Authorization, authorization::Bearer};
-use sea_orm::{EntityTrait, Set, ActiveModelTrait, ColumnTrait, QueryFilter};
+use sea_orm::{
+    EntityTrait, Set, ActiveModelTrait, ColumnTrait, QueryFilter, IntoActiveModel
+};
 use serde::Deserialize;
 use crate::{
     models::{ticket, user},
@@ -62,6 +64,130 @@ pub async fn create_ticket(
     }
 }
 
+pub async fn get_tickets(
+    TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
+) -> impl IntoResponse {
+    let db = connect().await;
+
+    let claims = match extract_claims(bearer.token()) {
+        Ok(c) => c,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    // 🔍 Lookup user info by email
+    let user = match user::Entity::find()
+        .filter(user::Column::Email.eq(claims.sub.clone()))
+        .one(&db)
+        .await
+        .unwrap()
+    {
+        Some(u) => u,
+        None => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    // 🎯 Role-based ticket listing
+    let tickets = if user.role == "admin" {
+        ticket::Entity::find().all(&db).await
+    } else {
+        ticket::Entity::find()
+            .filter(ticket::Column::UserId.eq(Some(user.id)))
+            .all(&db)
+            .await
+    };
+
+    match tickets {
+        Ok(list) => Json(list).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+pub async fn get_ticket_by_id(
+    Path(ticket_id): Path<i32>,
+    TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
+) -> impl IntoResponse {
+    let db = connect().await;
+
+    // Extract claims
+    let claims = match extract_claims(bearer.token()) {
+        Ok(c) => c,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    // Find ticket by ID
+    let ticket = match ticket::Entity::find_by_id(ticket_id)
+        .one(&db)
+        .await
+        .unwrap()
+    {
+        Some(t) => t,
+        None => return StatusCode::NOT_FOUND.into_response(),
+    };
+
+    // Find user
+    let user = match user::Entity::find()
+        .filter(user::Column::Email.eq(claims.sub.clone()))
+        .one(&db)
+        .await
+        .unwrap()
+    {
+        Some(u) => u,
+        None => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    // Authorization check
+    if user.role != "admin" && Some(user.id) != ticket.user_id {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    Json(ticket).into_response()
+}
+
+pub async fn delete_ticket_by_id(
+    Path(ticket_id): Path<i32>,
+    TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
+) -> impl IntoResponse {
+    let db = connect().await;
+
+    let claims = match extract_claims(bearer.token()) {
+        Ok(c) => c,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let user = match user::Entity::find()
+        .filter(user::Column::Email.eq(claims.sub.clone()))
+        .one(&db)
+        .await
+        .unwrap()
+    {
+        Some(u) => u,
+        None => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let ticket = match ticket::Entity::find_by_id(ticket_id)
+        .one(&db)
+        .await
+        .unwrap()
+    {
+        Some(t) => t,
+        None => return StatusCode::NOT_FOUND.into_response(),
+    };
+
+    // Check access
+    if user.role != "admin" && ticket.user_id != Some(user.id) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    // Delete
+    match ticket.into_active_model().delete(&db).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
 pub fn routes() -> Router {
-    Router::new().route("/create", post(create_ticket))
+    Router::new()
+        .route("/create", post(create_ticket))
+        .route("/", get(get_tickets))
+        .route("/{id}", get(get_ticket_by_id)
+                                            .delete(delete_ticket_by_id))
 }

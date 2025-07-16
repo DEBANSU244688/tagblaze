@@ -1,5 +1,8 @@
 use axum::{routing::{post, get}, Router};
-use crate::handlers::auth::{register_user, login_user, me};
+use crate::{
+    handlers::auth::{register_user, login_user, me},
+    routes::ticket::get_tickets,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -26,4 +29,5 @@ pub fn routes() -> Router {
         .route("/register", post(register_user))
         .route("/login", post(login_user))
         .route("/me", get(me))
+        .route("/", get(get_tickets))
 }
