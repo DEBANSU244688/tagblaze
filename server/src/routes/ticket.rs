@@ -184,10 +184,71 @@ pub async fn delete_ticket_by_id(
     }
 }
 
+#[derive(Deserialize)]
+pub struct UpdateTicket {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub status: Option<String>,
+}
+
+pub async fn update_ticket_by_id(
+    Path(ticket_id): Path<i32>,
+    TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
+    Json(payload): Json<UpdateTicket>,
+) -> impl IntoResponse {
+    let db = connect().await;
+
+    let claims = match extract_claims(bearer.token()) {
+        Ok(c) => c,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let user = match user::Entity::find()
+        .filter(user::Column::Email.eq(claims.sub.clone()))
+        .one(&db)
+        .await
+        .unwrap()
+    {
+        Some(u) => u,
+        None => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let ticket = match ticket::Entity::find_by_id(ticket_id)
+        .one(&db)
+        .await
+        .unwrap()
+    {
+        Some(t) => t,
+        None => return StatusCode::NOT_FOUND.into_response(),
+    };
+
+    // 🔐 Authorization: must be admin or owner
+    if user.role != "admin" && ticket.user_id != Some(user.id) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    let mut active_ticket: ticket::ActiveModel = ticket.into_active_model();
+    if let Some(t) = payload.title {
+        active_ticket.title = Set(t);
+    }
+    if let Some(d) = payload.description {
+        active_ticket.description = Set(Some(d));
+    }
+    if let Some(s) = payload.status {
+        active_ticket.status = Set(Some(s));
+    }
+
+    match active_ticket.update(&db).await {
+        Ok(updated) => axum::Json(updated).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
 pub fn routes() -> Router {
     Router::new()
         .route("/create", post(create_ticket))
         .route("/", get(get_tickets))
         .route("/{id}", get(get_ticket_by_id)
-                                            .delete(delete_ticket_by_id))
+                                            .delete(delete_ticket_by_id)
+                                            .put(update_ticket_by_id))
 }

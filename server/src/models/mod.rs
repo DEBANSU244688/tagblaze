@@ -2,5 +2,6 @@
 
 pub mod prelude;
 
+pub mod tag;
 pub mod ticket;
 pub mod user;
