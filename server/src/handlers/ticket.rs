@@ -15,6 +15,7 @@ use crate::{
     utils::jwt::extract_claims,
 };
 
+/// Payload for creating a new ticket.
 #[derive(Deserialize)]
 pub struct CreateTicket {
     pub title: String,
@@ -22,6 +23,20 @@ pub struct CreateTicket {
     pub status: Option<String>,
 }
 
+/// Create a new ticket assigned to the authenticated user.
+///
+/// # Headers
+/// - `Authorization: Bearer <token>`
+///
+/// # Request Body
+/// - `title`: Title of the ticket (required)
+/// - `description`: Optional description
+/// - `status`: Optional status (defaults to `"open"`)
+///
+/// # Returns
+/// - `200 OK` with the created ticket
+/// - `401 UNAUTHORIZED` if JWT is invalid
+/// - `500 INTERNAL_SERVER_ERROR` on DB failure
 pub async fn create_ticket(
     TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
     Json(payload): Json<CreateTicket>,
@@ -33,6 +48,7 @@ pub async fn create_ticket(
 
     let db = connect().await;
 
+    // 🎯 Get user from JWT claim
     let user_record = match user::Entity::find()
         .filter(user::Column::Email.eq(claims.sub.clone()))
         .one(&db)
@@ -43,19 +59,10 @@ pub async fn create_ticket(
         None => return StatusCode::UNAUTHORIZED.into_response(),
     };
 
+    // 🕒 Timestamp now
     let now = Local::now().naive_local();
 
-    /// Constructs a new `ticket::ActiveModel` instance representing a ticket to be inserted into the database.
-    ///
-    /// # Fields
-    /// - `title`: The title of the ticket, set from the payload.
-    /// - `description`: The description of the ticket, set from the payload.
-    /// - `status`: The status of the ticket, set from the payload or defaults to `"open"` if not provided.
-    /// - `user_id`: The ID of the user creating the ticket.
-    /// - `created_at`: The timestamp when the ticket was created.
-    /// - `updated_at`: The timestamp when the ticket was last updated.
-    ///
-    /// Other fields are set to their default values.
+    // 📦 Build ticket model
     let new_ticket = ticket::ActiveModel {
         title: Set(payload.title),
         description: Set(payload.description),
@@ -66,12 +73,22 @@ pub async fn create_ticket(
         ..Default::default()
     };
 
+    // 💾 Insert into DB
     match new_ticket.insert(&db).await {
         Ok(saved_ticket) => axum::Json(saved_ticket).into_response(),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
 
+/// Get all tickets available to the authenticated user.
+///
+/// - Admins receive **all** tickets.
+/// - Regular users receive only **their own** tickets.
+///
+/// # Returns
+/// - `200 OK` with ticket list
+/// - `401 UNAUTHORIZED` if JWT is invalid
+/// - `500 INTERNAL_SERVER_ERROR` on DB failure
 pub async fn get_tickets(
     TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
 ) -> impl IntoResponse {
@@ -92,6 +109,7 @@ pub async fn get_tickets(
         None => return StatusCode::UNAUTHORIZED.into_response(),
     };
 
+    // 🧠 Admins get all tickets, others get only their own
     let tickets = if user.role == "admin" {
         ticket::Entity::find().all(&db).await
     } else {
@@ -107,6 +125,16 @@ pub async fn get_tickets(
     }
 }
 
+/// Get a specific ticket by ID (with access control).
+///
+/// - Admins can view any ticket.
+/// - Regular users can only view their own tickets.
+///
+/// # Returns
+/// - `200 OK` with ticket
+/// - `403 FORBIDDEN` if access is denied
+/// - `404 NOT_FOUND` if ticket doesn't exist
+/// - `401 UNAUTHORIZED` if JWT is invalid
 pub async fn get_ticket_by_id(
     Path(ticket_id): Path<i32>,
     TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
@@ -137,6 +165,7 @@ pub async fn get_ticket_by_id(
         None => return StatusCode::UNAUTHORIZED.into_response(),
     };
 
+    // 🚫 Access control
     if user.role != "admin" && Some(user.id) != ticket.user_id {
         return StatusCode::FORBIDDEN.into_response();
     }
@@ -144,6 +173,16 @@ pub async fn get_ticket_by_id(
     Json(ticket).into_response()
 }
 
+/// Delete a ticket by ID (with access control).
+///
+/// - Admins can delete any ticket.
+/// - Regular users can only delete their own tickets.
+///
+/// # Returns
+/// - `204 NO_CONTENT` on success
+/// - `403 FORBIDDEN` if unauthorized
+/// - `404 NOT_FOUND` if ticket doesn't exist
+/// - `401 UNAUTHORIZED` if JWT is invalid
 pub async fn delete_ticket_by_id(
     Path(ticket_id): Path<i32>,
     TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
@@ -174,6 +213,7 @@ pub async fn delete_ticket_by_id(
         None => return StatusCode::NOT_FOUND.into_response(),
     };
 
+    // 🛡️ Only allow deletion if owner or admin
     if user.role != "admin" && ticket.user_id != Some(user.id) {
         return StatusCode::FORBIDDEN.into_response();
     }
@@ -184,6 +224,7 @@ pub async fn delete_ticket_by_id(
     }
 }
 
+/// Payload for updating a ticket.
 #[derive(Deserialize)]
 pub struct UpdateTicket {
     pub title: Option<String>,
@@ -191,6 +232,17 @@ pub struct UpdateTicket {
     pub status: Option<String>,
 }
 
+/// Update a ticket by ID (with access control).
+///
+/// # Request Body
+/// - Optional fields to update: `title`, `description`, `status`
+///
+/// # Returns
+/// - `200 OK` with updated ticket
+/// - `403 FORBIDDEN` if access denied
+/// - `404 NOT_FOUND` if ticket doesn't exist
+/// - `401 UNAUTHORIZED` if JWT is invalid
+/// - `500 INTERNAL_SERVER_ERROR` on update failure
 pub async fn update_ticket_by_id(
     Path(ticket_id): Path<i32>,
     TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
@@ -222,10 +274,12 @@ pub async fn update_ticket_by_id(
         None => return StatusCode::NOT_FOUND.into_response(),
     };
 
+    // 🔐 Enforce ownership or admin access
     if user.role != "admin" && ticket.user_id != Some(user.id) {
         return StatusCode::FORBIDDEN.into_response();
     }
 
+    // 🛠️ Apply patch
     let mut active_ticket: ticket::ActiveModel = ticket.into_active_model();
     if let Some(t) = payload.title {
         active_ticket.title = Set(t);

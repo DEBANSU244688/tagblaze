@@ -1,0 +1,3 @@
+var srcIndex = new Map(JSON.parse('[["tagblaze",["",[["db",[],["db.rs","mod.rs"]],["handlers",[],["admin.rs","auth.rs","mod.rs","relations.rs","tag.rs","ticket.rs"]],["models",[],["mod.rs","prelude.rs","tag.rs","ticket.rs","ticket_tag.rs","user.rs"]],["routes",[],["admin.rs","auth.rs","health.rs","mod.rs","relations.rs","tag.rs","ticket.rs"]],["utils",[],["auth.rs","jwt.rs","mod.rs"]]],["config.rs","lib.rs"]]]]'));
+createSrcSidebar();
+//{"start":36,"fragment_lengths":[377]}
