@@ -2,6 +2,7 @@
 
 use sea_orm::entity::prelude::*;
 use serde::Serialize;
+use chrono::NaiveDateTime;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize)]
 #[sea_orm(table_name = "ticket")]
@@ -15,8 +16,8 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub status: Option<String>,
     pub user_id: Option<i32>,
-    pub created_at: Option<DateTime>,
-    pub updated_at: Option<DateTime>,
+    pub created_at: Option<NaiveDateTime>,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

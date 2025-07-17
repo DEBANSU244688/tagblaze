@@ -8,27 +8,40 @@ use bcrypt::{hash, DEFAULT_COST, verify};
 use crate::routes::auth::{LoginRequest, LoginResponse};
 use crate::utils::jwt::create_jwt;
 use crate::utils::auth::extract_claims;
+use chrono::Local;
 
 pub async fn register_user(Json(payload): Json<RegisterRequest>) -> impl IntoResponse {
-    let password_hash = hash(&payload.password, DEFAULT_COST).unwrap();
+    // Hash the password
+    let password_hash = match hash(&payload.password, DEFAULT_COST) {
+        Ok(h) => h,
+        Err(e) => {
+            eprintln!("❌ Password hashing failed: {:?}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json("❌ Failed to hash password."));
+        }
+    };
 
+    // Get current local time
+    let now = Local::now().naive_local();
+
+    // Create new user model
     let new_user = ActiveModel {
         email: Set(payload.email),
         name: Set(payload.name),
         password: Set(password_hash),
         role: Set(payload.role),
+        created_at: Set(Some(now)),
         ..Default::default()
     };
 
+    // Insert into DB
     let db = crate::db::db::connect().await;
-
     let res = new_user.insert(&db).await;
 
     match res {
-        Ok(_) => Json("🎉 User registered successfully!"),
+        Ok(_) => (StatusCode::CREATED, Json("🎉 User registered successfully!")),
         Err(e) => {
-            eprintln!("❌ Error: {:?}", e);
-            Json("❌ Could not register user.")
+            eprintln!("❌ Error inserting user: {:?}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json("❌ Could not register user."))
         }
     }
 }

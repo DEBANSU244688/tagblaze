@@ -1,7 +1,9 @@
 use axum::{routing::{post, get}, Router};
 use crate::{
-    handlers::auth::{register_user, login_user, me},
-    routes::ticket::get_tickets,
+    handlers::{
+        auth::{register_user, login_user, me}, 
+        ticket::get_tickets,
+    }
 };
 use serde::{Deserialize, Serialize};
 
