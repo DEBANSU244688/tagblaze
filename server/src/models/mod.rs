@@ -4,4 +4,5 @@ pub mod prelude;
 
 pub mod tag;
 pub mod ticket;
+pub mod ticket_tag;
 pub mod user;

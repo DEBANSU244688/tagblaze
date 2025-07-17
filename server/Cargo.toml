@@ -19,4 +19,6 @@ bcrypt = "0.17"
 jsonwebtoken = "9"
 chrono = { version = "0.4", features = ["serde", "clock"] }
 headers = "0.4"
+
 axum-extra = { version = "0.10", features = ["typed-header"] }
+futures = "0.3"

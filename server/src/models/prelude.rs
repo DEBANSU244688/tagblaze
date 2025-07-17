@@ -2,4 +2,5 @@
 
 pub use super::tag::Entity as Tag;
 pub use super::ticket::Entity as Ticket;
+pub use super::ticket_tag::Entity as TicketTag;
 pub use super::user::Entity as User;
