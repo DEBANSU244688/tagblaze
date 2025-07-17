@@ -1,10 +1,12 @@
-use axum::{http::StatusCode, response::IntoResponse, Json};
-use sea_orm::{DatabaseBackend, Statement, ConnectionTrait, ActiveModelTrait, Set, DbErr, DatabaseConnection};
-use futures::future::join_all;
-use crate::models::{tag, ticket, ticket_tag, user};
 use crate::db::db::connect;
-use bcrypt::{hash, DEFAULT_COST};
+use crate::models::{tag, ticket, ticket_tag, user};
+use axum::{Json, http::StatusCode, response::IntoResponse};
+use bcrypt::{DEFAULT_COST, hash};
 use chrono::Local;
+use futures::future::join_all;
+use sea_orm::{
+    ActiveModelTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, DbErr, Set, Statement,
+};
 
 pub async fn reset_db() -> impl IntoResponse {
     let db = connect().await;
@@ -14,12 +16,21 @@ pub async fn reset_db() -> impl IntoResponse {
         TRUNCATE "user", tag, ticket, ticket_tag RESTART IDENTITY CASCADE;
     "#;
 
-    if let Err(e) = db.execute(Statement::from_string(DatabaseBackend::Postgres, reset_query)).await {
+    if let Err(e) = db
+        .execute(Statement::from_string(
+            DatabaseBackend::Postgres,
+            reset_query,
+        ))
+        .await
+    {
         eprintln!("❌ DB reset failed: {:?}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-            "reset": false,
-            "error": e.to_string()
-        })));
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "reset": false,
+                "error": e.to_string()
+            })),
+        );
     }
 
     // 🌱 Seed users
@@ -61,6 +72,23 @@ async fn seed_users(db: &DatabaseConnection) -> Result<Vec<user::Model>, DbErr> 
     let now = Local::now().naive_local();
     let hashed = hash("devpass123", DEFAULT_COST).expect("Password hashing failed");
 
+    /// Creates a vector of `user::ActiveModel` instances representing initial users for the system.
+    ///
+    /// # Users
+    /// - Zoya: Agent role, email "zoya@tagblaze.dev"
+    /// - Ankit: Admin role, email "ankit@tagblaze.dev"
+    /// - Divya Singh: Agent role, email "divya@tagblaze.dev"
+    ///
+    /// All users are initialized with the same hashed password and creation timestamp.
+    ///
+    /// # Fields
+    /// - `email`: User's email address.
+    /// - `name`: User's display name.
+    /// - `password`: Hashed password.
+    /// - `role`: User's role in the system ("agent" or "admin").
+    /// - `created_at`: Timestamp of creation.
+    ///
+    /// Other fields are set to their default values.
     let users = vec![
         user::ActiveModel {
             email: Set("zoya@tagblaze.dev".into()),
@@ -104,9 +132,24 @@ async fn seed_tags_and_tickets(
 
     // Tags
     let tags = vec![
-        tag::ActiveModel { name: Set("Bug".into()), created_at: Set(Some(now)), updated_at: Set(Some(now)), ..Default::default() },
-        tag::ActiveModel { name: Set("Feature".into()), created_at: Set(Some(now)), updated_at: Set(Some(now)), ..Default::default() },
-        tag::ActiveModel { name: Set("Urgent".into()), created_at: Set(Some(now)), updated_at: Set(Some(now)), ..Default::default() },
+        tag::ActiveModel {
+            name: Set("Bug".into()),
+            created_at: Set(Some(now)),
+            updated_at: Set(Some(now)),
+            ..Default::default()
+        },
+        tag::ActiveModel {
+            name: Set("Feature".into()),
+            created_at: Set(Some(now)),
+            updated_at: Set(Some(now)),
+            ..Default::default()
+        },
+        tag::ActiveModel {
+            name: Set("Urgent".into()),
+            created_at: Set(Some(now)),
+            updated_at: Set(Some(now)),
+            ..Default::default()
+        },
     ];
 
     let saved_tags = join_all(tags.into_iter().map(|t| t.insert(db)))

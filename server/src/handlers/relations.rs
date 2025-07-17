@@ -1,15 +1,13 @@
-use axum::{
-    extract::{Path}, http::StatusCode, response::IntoResponse, Json
-};
+use axum::{Json, extract::Path, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::TypedHeader;
-use headers::{authorization::Bearer, Authorization};
-use sea_orm::{
-    ColumnTrait, EntityTrait, QueryFilter, ActiveModelTrait, Set, DatabaseConnection,
-};
+use headers::{Authorization, authorization::Bearer};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 
 use crate::{
-    db::db::connect, models::{tag, ticket_tag, ticket_tag::Entity as TicketTagEntity}, utils::jwt::extract_claims,
+    db::db::connect,
+    models::{tag, ticket_tag, ticket_tag::Entity as TicketTagEntity},
+    utils::jwt::extract_claims,
 };
 
 pub async fn attach_tag(
@@ -22,6 +20,14 @@ pub async fn attach_tag(
 
     let db = connect().await;
 
+    /// Creates a new `ticket_tag::ActiveModel` instance representing the association between a ticket and a tag.
+    ///
+    /// # Arguments
+    ///
+    /// * `ticket_id` - The identifier of the ticket to be linked.
+    /// * `tag_id` - The identifier of the tag to be linked.
+    ///
+    /// The remaining fields are set to their default values.
     let link = ticket_tag::ActiveModel {
         ticket_id: Set(ticket_id),
         tag_id: Set(tag_id),
@@ -34,9 +40,7 @@ pub async fn attach_tag(
     }
 }
 
-pub async fn get_tags_for_ticket(
-    Path(ticket_id): Path<i32>,
-) -> impl IntoResponse {
+pub async fn get_tags_for_ticket(Path(ticket_id): Path<i32>) -> impl IntoResponse {
     let db: DatabaseConnection = connect().await;
 
     match ticket_tag::Entity::find()
@@ -61,15 +65,14 @@ pub async fn get_tags_for_ticket(
                     "error": "Failed to fetch tags",
                     "details": e.to_string(),
                     "ticket_id": ticket_id
-                }))
-            ).into_response()
+                })),
+            )
+                .into_response()
         }
     }
 }
 
-pub async fn detach_tag(
-    Path((ticket_id, tag_id)): Path<(i32, i32)>,
-) -> impl IntoResponse {
+pub async fn detach_tag(Path((ticket_id, tag_id)): Path<(i32, i32)>) -> impl IntoResponse {
     let db = connect().await;
 
     match TicketTagEntity::delete_many()

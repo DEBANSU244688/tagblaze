@@ -1,9 +1,10 @@
-use axum::{routing::{post, get}, Router};
-use crate::{
-    handlers::{
-        auth::{register_user, login_user, me}, 
-        ticket::get_tickets,
-    }
+use crate::handlers::{
+    auth::{login_user, me, register_user},
+    ticket::get_tickets,
+};
+use axum::{
+    Router,
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +20,13 @@ pub struct LoginResponse {
 }
 
 #[derive(Deserialize)]
+/// Represents a request to register a new user.
+///
+/// # Fields
+/// - `email`: The email address of the user.
+/// - `name`: The display name of the user.
+/// - `password`: The password for the user's account.
+/// - `role`: The role assigned to the user, either `"agent"` or `"admin"`.
 pub struct RegisterRequest {
     pub email: String,
     pub name: String,

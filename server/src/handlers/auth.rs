@@ -1,22 +1,32 @@
-use axum::{Json, response::IntoResponse};
-use axum::http::StatusCode;
-use axum::{extract::Request};
-use sea_orm::{EntityTrait, ActiveModelTrait, Set, ColumnTrait, QueryFilter};
-use crate::models::user::{Entity as User, ActiveModel};
+use crate::models::user::{ActiveModel, Entity as User};
 use crate::routes::auth::RegisterRequest;
-use bcrypt::{hash, DEFAULT_COST, verify};
 use crate::routes::auth::{LoginRequest, LoginResponse};
-use crate::utils::jwt::create_jwt;
 use crate::utils::auth::extract_claims;
+use crate::utils::jwt::create_jwt;
+use axum::extract::Request;
+use axum::http::StatusCode;
+use axum::{Json, response::IntoResponse};
+use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::Local;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 pub async fn register_user(Json(payload): Json<RegisterRequest>) -> impl IntoResponse {
     // Hash the password
+    /// Stores the securely hashed version of the user's password.
+    ///
+    /// This value is generated using the bcrypt algorithm with the default cost.
+    /// If password hashing fails, an internal server error is returned and the error is logged.
+    ///
+    /// # Errors
+    /// Returns an internal server error if password hashing fails.
     let password_hash = match hash(&payload.password, DEFAULT_COST) {
         Ok(h) => h,
         Err(e) => {
             eprintln!("❌ Password hashing failed: {:?}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json("❌ Failed to hash password."));
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json("❌ Failed to hash password."),
+            );
         }
     };
 
@@ -38,15 +48,23 @@ pub async fn register_user(Json(payload): Json<RegisterRequest>) -> impl IntoRes
     let res = new_user.insert(&db).await;
 
     match res {
-        Ok(_) => (StatusCode::CREATED, Json("🎉 User registered successfully!")),
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json("🎉 User registered successfully!"),
+        ),
         Err(e) => {
             eprintln!("❌ Error inserting user: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json("❌ Could not register user."))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json("❌ Could not register user."),
+            )
         }
     }
 }
 
-pub async fn login_user(Json(payload): Json<LoginRequest>) -> Result<Json<LoginResponse>, StatusCode> {
+pub async fn login_user(
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, StatusCode> {
     let db = crate::db::db::connect().await;
 
     let user = User::find()

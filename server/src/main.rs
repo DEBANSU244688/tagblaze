@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
 use tracing_subscriber;
 
-mod routes;
-mod handlers;
-mod db;
-mod models;
 mod config;
+mod db;
+mod handlers;
+mod models;
+mod routes;
 mod utils;
 
 #[tokio::main]
@@ -17,6 +17,9 @@ async fn main() {
     let app = routes::create_router();
 
     // Define the address
+    /// The `addr` variable specifies the socket address for the server to bind to.
+    /// It uses the IPv4 loopback address (`127.0.0.1`) and port `3000`, meaning the server
+    /// will only be accessible locally on the specified port.
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     println!("🚀 TagBlaze running at http://{}", addr);
 

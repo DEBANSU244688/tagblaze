@@ -1,16 +1,18 @@
 use axum::{
-    extract::{Json, Path}, response::IntoResponse, http::StatusCode,
+    extract::{Json, Path},
+    http::StatusCode,
+    response::IntoResponse,
 };
 use axum_extra::extract::TypedHeader;
-use headers::{Authorization, authorization::Bearer};
-use sea_orm::{
-    EntityTrait, Set, ActiveModelTrait, ColumnTrait, QueryFilter, IntoActiveModel
-};
-use serde::Deserialize;
 use chrono::Local;
+use headers::{Authorization, authorization::Bearer};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
+use serde::Deserialize;
 
 use crate::{
-    models::{ticket, user}, db::db::connect, utils::jwt::extract_claims,
+    db::db::connect,
+    models::{ticket, user},
+    utils::jwt::extract_claims,
 };
 
 #[derive(Deserialize)]
@@ -43,6 +45,17 @@ pub async fn create_ticket(
 
     let now = Local::now().naive_local();
 
+    /// Constructs a new `ticket::ActiveModel` instance representing a ticket to be inserted into the database.
+    ///
+    /// # Fields
+    /// - `title`: The title of the ticket, set from the payload.
+    /// - `description`: The description of the ticket, set from the payload.
+    /// - `status`: The status of the ticket, set from the payload or defaults to `"open"` if not provided.
+    /// - `user_id`: The ID of the user creating the ticket.
+    /// - `created_at`: The timestamp when the ticket was created.
+    /// - `updated_at`: The timestamp when the ticket was last updated.
+    ///
+    /// Other fields are set to their default values.
     let new_ticket = ticket::ActiveModel {
         title: Set(payload.title),
         description: Set(payload.description),

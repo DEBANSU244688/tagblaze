@@ -1,17 +1,15 @@
 use axum::{
-    extract::{Json, Path}, response::IntoResponse, http::StatusCode,
+    extract::{Json, Path},
+    http::StatusCode,
+    response::IntoResponse,
 };
 use axum_extra::extract::TypedHeader;
-use headers::{Authorization, authorization::Bearer};
-use sea_orm::{
-    EntityTrait, Set, ActiveModelTrait, ModelTrait, IntoActiveModel,
-};
-use serde::Deserialize;
 use chrono::Local;
+use headers::{Authorization, authorization::Bearer};
+use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, ModelTrait, Set};
+use serde::Deserialize;
 
-use crate::{
-    models::tag, db::db::connect, utils::jwt::extract_claims,
-};
+use crate::{db::db::connect, models::tag, utils::jwt::extract_claims};
 
 #[derive(Deserialize)]
 pub struct CreateTag {
@@ -36,6 +34,19 @@ pub async fn create_tag(
     let db = connect().await;
     let now = Local::now().naive_local();
 
+    /// Creates a new `tag::ActiveModel` instance with the provided name and timestamps.
+    ///
+    /// # Arguments
+    /// * `payload.name` - The name of the tag to be created.
+    /// * `now` - The current timestamp to set for both `created_at` and `updated_at`.
+    ///
+    /// # Fields
+    /// - `name`: Sets the tag's name from the payload.
+    /// - `created_at`: Sets the creation timestamp.
+    /// - `updated_at`: Sets the update timestamp.
+    /// - Other fields are set to their default values.
+    ///
+    /// This is typically used when inserting a new tag record into the database.
     let new_tag = tag::ActiveModel {
         name: Set(payload.name),
         created_at: Set(Some(now)),
@@ -106,7 +117,7 @@ pub async fn delete_tag_by_id(Path(id): Path<i32>) -> impl IntoResponse {
         Ok(Some(tag)) => match tag.delete(&db).await {
             Ok(_) => StatusCode::NO_CONTENT,
             Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
+        },
         Ok(None) => StatusCode::NOT_FOUND,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }

@@ -4,6 +4,13 @@ use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "ticket_tag")]
+/// Represents the association between a ticket and a tag in the system.
+///
+/// Each `Model` instance links a ticket (`ticket_id`) to a tag (`tag_id`),
+/// with a unique identifier (`id`) as the primary key.
+///
+/// This struct is typically used for managing many-to-many relationships
+/// between tickets and tags.
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
